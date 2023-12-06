@@ -1,5 +1,6 @@
 use std::{
-    fmt::Debug,
+    env,
+    fmt::{Debug, Display},
     fs::OpenOptions,
     io::{self, Read},
 };
@@ -118,9 +119,9 @@ impl Graph {
             }
 
             for (child_id, flow, capacity) in last.neignbors.iter() {
-                follower_nodes[*child_id] = Some(last.id);
-                if flow < capacity {
+                if flow < capacity && follower_nodes[*child_id].is_none() {
                     queue.push(*child_id);
+                    follower_nodes[*child_id] = Some(last.id);
                 }
             }
         }
@@ -191,7 +192,7 @@ impl Debug for Graph {
             for (node_children, flow, weight) in node.neignbors.iter() {
                 let child = &self.nodes[*node_children];
                 f.write_fmt(format_args!(
-                    "{} --> {} {:4} {:4}\n",
+                    "\t{} --> {}\t : {}/{}\n",
                     node.name, child.name, flow, weight
                 ))?;
             }
@@ -200,11 +201,25 @@ impl Debug for Graph {
     }
 }
 
+impl Display for Graph {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("```mermaid\nstateDiagram-v2\n")?;
+        for node in self.nodes.iter() {
+            for (node_children, flow, weight) in node.neignbors.iter() {
+                let child = &self.nodes[*node_children];
+                f.write_fmt(format_args!(
+                    "{} --> {}: {}/{}\n",
+                    node.name, child.name, flow, weight
+                ))?;
+            }
+        }
+        f.write_str("```")
+    }
+}
+
 fn main() -> io::Result<()> {
-    let mut input_file = OpenOptions::new()
-        .read(true)
-        .write(false)
-        .open("sample.txt")?;
+    let filename = env::args().nth(1).expect("Expected a filename!");
+    let mut input_file = OpenOptions::new().read(true).write(false).open(filename)?;
 
     let mut input_string = String::new();
     input_file.read_to_string(&mut input_string)?;
@@ -227,7 +242,6 @@ fn main() -> io::Result<()> {
         }
     }
 
-    println!("{graph:#?}");
     println!(
         "Flow: {}",
         graph.cal_flow(
@@ -235,6 +249,7 @@ fn main() -> io::Result<()> {
             graph.lookup_node("t").unwrap()
         )
     );
+    println!("\nFinal Graph:\n{graph}");
 
     Ok(())
 }
