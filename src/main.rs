@@ -96,7 +96,7 @@ impl Graph {
         &self,
         starting_node_id: usize,
         mut check_goal: Function,
-    ) -> Vec<usize>
+    ) -> Option<Vec<usize>>
     where
         Function: FnMut(&Node) -> bool,
     {
@@ -109,27 +109,75 @@ impl Graph {
 
             if check_goal(last) {
                 let mut path = Vec::new();
-                let mut follower = Some(starting_node_id);
+                let mut follower = Some(last.id);
                 while follower.is_some() {
                     path.push(follower.unwrap());
                     follower = follower_nodes[follower.unwrap()];
                 }
-                return path;
+                return Some(path.into_iter().rev().collect());
             }
 
             for (child_id, flow, capacity) in last.neignbors.iter() {
-                follower_nodes[last.id] = Some(*child_id);
+                follower_nodes[*child_id] = Some(last.id);
                 if flow < capacity {
                     queue.push(*child_id);
                 }
             }
         }
 
-        Vec::new()
+        None
     }
 
-    fn find_min_of_path(&self, path: Vec<usize>) -> i32 {
-        todo!()
+    fn find_min_of_path(&self, path: &Vec<usize>) -> Option<i32> {
+        path.windows(2)
+            .map(|window| {
+                let first = window[0];
+                let second = window[1];
+
+                self.nodes[first]
+                    .neignbors
+                    .iter()
+                    .find_map(|(neignbor_index, flow, capacity)| {
+                        if *neignbor_index == second {
+                            Some(capacity - flow)
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap()
+            })
+            .min()
+    }
+
+    fn add_flow_in_path(&mut self, path: &Vec<usize>, addition: i32) {
+        for window in path.windows(2) {
+            let first = window[0];
+            let second = window[1];
+
+            let &mut (_, flow, capacity) = &mut self.nodes[first]
+                .neignbors
+                .iter_mut()
+                .find(|(index, _, _)| *index == second)
+                .unwrap();
+
+            assert!(*flow + addition <= *capacity);
+            *flow += addition;
+        }
+    }
+
+    fn cal_flow(&mut self, starting_id: usize, ending_id: usize) -> i32 {
+        while let Some(path) = self.breadth_first_search(starting_id, |node| node.id == ending_id) {
+            println!("Path: {:?}", path);
+            let min_flow = self.find_min_of_path(&path).unwrap();
+            if min_flow == 0 {
+                break;
+            }
+
+            self.add_flow_in_path(&path, min_flow);
+            println!("{:?}", self);
+        }
+
+        self.flow_out(starting_id).0
     }
 }
 
@@ -181,24 +229,12 @@ fn main() -> io::Result<()> {
 
     println!("{graph:#?}");
     println!(
-        "Flow-out of 's': {:?}",
-        graph.flow_out(graph.lookup_node("s").unwrap())
+        "Flow: {}",
+        graph.cal_flow(
+            graph.lookup_node("s").unwrap(),
+            graph.lookup_node("t").unwrap()
+        )
     );
-
-    let t_node_id = graph.lookup_node("t").unwrap();
-    let path_from_s_to_t =
-        graph.breadth_first_search(graph.lookup_node("s").unwrap(), |node| node.id == t_node_id);
-
-    print!("Path from 's' to 't':\n\t");
-    for (index, child) in path_from_s_to_t.iter().enumerate() {
-        print!("{}", graph.node_name(*child).unwrap());
-
-        if index < path_from_s_to_t.len() - 1 {
-            print!(" -> ");
-        }
-    }
-
-    println!();
 
     Ok(())
 }
