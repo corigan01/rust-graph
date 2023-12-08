@@ -5,6 +5,20 @@ use std::{
     io::{self, Read},
 };
 
+use rand::distributions::Alphanumeric;
+use rand::{thread_rng, Rng};
+
+fn random_string(n: usize) -> String {
+    let mut new_string = String::new();
+    let random_chars = thread_rng().sample_iter(&Alphanumeric).take(n);
+    for c in random_chars {
+        let letter = c % 10 + 65;
+        new_string.push(letter as char);
+    }
+
+    new_string.to_ascii_lowercase()
+}
+
 struct Graph {
     nodes: Vec<Node>,
 }
@@ -65,7 +79,7 @@ impl Graph {
         self.nodes.get(node).map(|node| node.name.clone())
     }
 
-    fn flow_in(&self, node: usize) -> (i32, i32) {
+    pub fn flow_in(&self, node: usize) -> (i32, i32) {
         let mut total_flow = 0;
         let mut total_capacity = 0;
         for (_, flow, capacity) in self
@@ -80,7 +94,7 @@ impl Graph {
         (total_flow, total_capacity)
     }
 
-    fn flow_out(&self, node: usize) -> (i32, i32) {
+    pub fn flow_out(&self, node: usize) -> (i32, i32) {
         let node = &self.nodes[node];
 
         let mut total_flow = 0;
@@ -93,7 +107,7 @@ impl Graph {
         (total_flow, total_cap)
     }
 
-    fn breadth_first_search<Function>(
+    pub fn breadth_first_search<Function>(
         &self,
         starting_node_id: usize,
         mut check_goal: Function,
@@ -112,7 +126,9 @@ impl Graph {
                 let mut path = Vec::new();
                 let mut follower = Some(last.id);
                 while follower.is_some() {
-                    path.push(follower.unwrap());
+                    if !path.contains(&follower.unwrap()) {
+                        path.push(follower.unwrap());
+                    }
                     follower = follower_nodes[follower.unwrap()];
                 }
                 return Some(path.into_iter().rev().collect());
@@ -218,12 +234,49 @@ impl Display for Graph {
 }
 
 fn main() -> io::Result<()> {
-    let filename = env::args().nth(1).expect("Expected a filename!");
-    let mut input_file = OpenOptions::new().read(true).write(false).open(filename)?;
+    let input_string = if env::args().len() == 2 {
+        let filename = env::args().nth(1).expect("Expected a filename!");
+        let mut input_file = OpenOptions::new().read(true).write(false).open(filename)?;
 
-    let mut input_string = String::new();
-    input_file.read_to_string(&mut input_string)?;
-    println!("Input File: {input_string:#?}");
+        let mut input_string = String::new();
+        input_file.read_to_string(&mut input_string)?;
+        println!("Input File: {input_string:#?}");
+        input_string
+    } else {
+        let mut fake_nodes: Vec<(String, String, i32)> = Vec::new();
+        for _ in 0..10 {
+            fake_nodes.push((
+                random_string(1),
+                random_string(1),
+                rand::random::<u8>() as i32 % 20,
+            ));
+        }
+
+        for _ in 0..5 {
+            fake_nodes.push((
+                String::from("s"),
+                random_string(1),
+                rand::random::<u8>() as i32 % 20,
+            ));
+        }
+
+        for _ in 0..5 {
+            fake_nodes.push((
+                random_string(1),
+                String::from("t"),
+                rand::random::<u8>() as i32 % 20,
+            ))
+        }
+
+        fake_nodes.retain(|(source, dest, _)| source != dest);
+
+        let mut building_string = String::new();
+        for (starting, ending, weight) in fake_nodes.iter() {
+            building_string.push_str(format!("{},{},{}\n", starting, ending, weight).as_str());
+        }
+
+        building_string
+    };
 
     let mut graph = Graph::new();
     for line in input_string.split("\n") {
@@ -241,6 +294,7 @@ fn main() -> io::Result<()> {
             _ => (),
         }
     }
+    println!("Graph: {}", graph);
 
     println!(
         "Flow: {}",
